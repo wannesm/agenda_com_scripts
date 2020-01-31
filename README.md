@@ -1,4 +1,5 @@
-# agenda_com_scripts
+# Agenda.com helper scripts
+
 Helper scripts for [Agenda](https://www.agenda.com)
 
 ## Scripts
