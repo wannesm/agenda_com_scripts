@@ -84,7 +84,7 @@ def weeklytodo(args):
                 'project-title': 'Todo'
             })
     except xcall.XCallbackError as err:
-        logger.error(err)
+        logger.debug(err)
         weeklytodo_create(args)
         return
     logger.debug(resp)
@@ -159,7 +159,7 @@ def weeklytoread(args):
                 'project-title': 'To Read'
             })
     except xcall.XCallbackError as err:
-        logger.error(err)
+        logger.debug(err)
         weeklytoread_create(args)
         return
     logger.debug(resp)
@@ -209,6 +209,33 @@ def weeklytoread_append(args):
         return
     logger.debug(resp)
 
+
+# LAUNCHBAR ##################################################################
+
+def run_launchbar(argv):
+    import json
+    items = []
+
+    item = {}
+    item['title'] = str(len(argv) - 1) + ' arguments passed'
+    items.append(item)
+
+    if len(argv) == 1:
+        weeklytodo_run()
+    elif len(argv) == 2:
+        weeklytodo_run(message=argv[1])
+
+    # Note: The first argument is the script's path
+    for arg in argv[1:]:
+        item = {}
+        item['title'] = 'Argument: ' + arg
+        items.append(item)
+
+    print(json.dumps(items))
+
+
+
+# CLI ########################################################################
 
 commands = {
     "open": openagenda,
