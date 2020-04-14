@@ -28,28 +28,39 @@ class Arguments:
     week: int = None
     year: int = None
 
-
-# WEEK ####################################################################
-
-def getweekstr(args=None):
-    now = datetime.date.today()
-    year, week, _ = now.isocalendar()
-    if args is not None:
-        if args.year is not None:
-            year = args.year
-        if args.week is not None:
-            week = args.week
-    weekstr = f"{year}W{week:02}"
-    # monday = datetime.datetime.strptime(weekstr + '-1', "%YW%W-%w")
-    week2str = f"{year}W{week-1}"
-    monday = datetime.datetime.strptime(week2str + '-1', "%YW%W-%w")
-    mondaystr = monday.strftime("%Y-%m-%d")
-    return weekstr, mondaystr
+    def __post_init__(self):
+        if self.week is None or self.year is None:
+            now = datetime.date.today()
+            year, week, _ = now.isocalendar()
+            if self.year is None:
+                self.year = year
+            if self.week is None:
+                self.week = week
 
 
-def print_currentweek(args):
-    weekstr, mondaystr = getweekstr()
-    print(f"{weekstr}  --  Monday={mondaystr}")
+    def previous_week(self):
+        if self.week == 1:
+            week = 52
+            year = year - 1
+        else:
+            week = self.week - 1
+            year = self.year
+        return Arguments(week=week, year=year)
+
+
+    def week_str(self):
+        weekstr = f"{self.year}W{self.week:02}"
+        return weekstr
+
+
+    def monday_str(self):
+        weekstr = self.week_str()
+        # monday = datetime.datetime.strptime(weekstr + '-1', "%YW%W-%w")
+        week2str = f"{self.year}W{self.week-1}"
+        monday = datetime.datetime.strptime(week2str + '-1', "%YW%W-%w")
+        mondaystr = monday.strftime("%Y-%m-%d")
+        return weekstr, mondaystr
+
 
 
 # OPEN ####################################################################
@@ -60,6 +71,10 @@ def openagenda(args):
     #     resp = xcall.xcall('agenda', '')
     # except xcall.XCallbackError as err:
     #     logger.error(err)
+
+def print_currentweek(args):
+    weekstr, mondaystr = args.monday_str()
+    print(f"{weekstr}  --  Monday={mondaystr}")
 
 
 # TO DO ###################################################################
@@ -74,7 +89,7 @@ def weeklytodo_run(**kwargs):
 
 def weeklytodo(args):
     logger.debug("Call weeklytodo")
-    weekstr, _ = getweekstr(args)
+    weekstr = args.week_str()
     try:
         resp = xcall.xcall(
             'agenda',
@@ -92,7 +107,7 @@ def weeklytodo(args):
 
 def weeklytodo_create(args):
     logger.debug("Call weeklytoreadcreate")
-    weekstr, mondaystr = getweekstr(args)
+    weekstr, mondaystr = args.monday_str()
     parameters = {
         'title': "Todo " + weekstr,
         'project-title': 'Todo',
@@ -116,7 +131,7 @@ def weeklytodo_create(args):
 
 def weeklytodo_append(args):
     logger.debug("Call weeklytodoappend")
-    weekstr, mondaystr = getweekstr(args)
+    weekstr, mondaystr = args.monday_str()
     parameters = {
         'title': "Todo " + weekstr,
         'project-title': 'Todo'
@@ -137,6 +152,13 @@ def weeklytodo_append(args):
     logger.debug(resp)
 
 
+def weeklytodo_parse(args):
+    logger.debug("Parsing todo")
+    weekstr = args.week_str()
+    prevweekstr = args.previous_week().week_str()
+    print("No x-callback-url for reading a note (yet) in Agenda")
+
+
 # TO READ #################################################################
 
 def weeklytoread_run(**kwargs):
@@ -149,7 +171,7 @@ def weeklytoread_run(**kwargs):
 
 def weeklytoread(args):
     logger.debug("Call weeklytoread")
-    weekstr, _ = getweekstr(args)
+    weekstr = args.week_str()
     try:
         resp = xcall.xcall(
             'agenda',
@@ -167,7 +189,7 @@ def weeklytoread(args):
 
 def weeklytoread_create(args):
     logger.debug("Call weeklytoreadcreate")
-    weekstr, mondaystr = getweekstr(args)
+    weekstr, mondaystr = args.monday_str()
     parameters = {
         'title': "To Read " + weekstr,
         'project-title': 'To Read',
@@ -189,7 +211,7 @@ def weeklytoread_create(args):
 
 def weeklytoread_append(args):
     logger.debug("Call weeklytoreadappend")
-    weekstr, mondaystr = getweekstr(args)
+    weekstr, mondaystr = args.monday_str()
     parameters = {
         'title': "To Read " + weekstr,
         'project-title': 'To Read'
@@ -212,7 +234,23 @@ def weeklytoread_append(args):
 
 # LAUNCHBAR ##################################################################
 
-def run_launchbar(argv):
+def run_launchbar(argv, action="todo"):
+    """
+    This function can be called from a LaunchBar script. For example, in
+    the Action Editor create a new Action with as default script:
+
+    ```
+    #!/usr/local/bin/python3
+    import sys, wm_agenda
+    wm_agenda.run_launchbar_todo(sys.argv, action="todo")
+    ```
+
+    And with only the checkbox "Accept string argument" checked.
+
+    Params:
+    args - Arguments passed from launchbar
+    action - Type of action: "todo" or "toread"
+    """
     import json
     items = []
 
@@ -220,10 +258,18 @@ def run_launchbar(argv):
     item['title'] = str(len(argv) - 1) + ' arguments passed'
     items.append(item)
 
+    if action == "todo":
+        fn = weeklytodo_run
+    elif action  == "toread":
+        fn = weeklytoread_run
+    else:
+        logger.error(f"Unknown action: {action}")
+        return
+
     if len(argv) == 1:
-        weeklytodo_run()
+        fn()
     elif len(argv) == 2:
-        weeklytodo_run(message=argv[1])
+        fn(message=argv[1])
 
     # Note: The first argument is the script's path
     for arg in argv[1:]:
@@ -232,7 +278,6 @@ def run_launchbar(argv):
         items.append(item)
 
     print(json.dumps(items))
-
 
 
 # CLI ########################################################################
@@ -245,6 +290,7 @@ commands = {
     "todo": weeklytodo,
     "todocreate": weeklytodo_create,
     "todoappend": weeklytodo_append,
+    "todoparse": weeklytodo_parse,
     "curweek": print_currentweek
 }
 
