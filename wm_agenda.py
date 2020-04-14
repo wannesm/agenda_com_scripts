@@ -24,18 +24,23 @@ import xcall
 
 @dataclass
 class Arguments:
+    title: str = None
+    project: str = None
     message: str = None
+    date: str = None
     week: int = None
     year: int = None
 
     def __post_init__(self):
-        if self.week is None or self.year is None:
-            now = datetime.date.today()
-            year, week, _ = now.isocalendar()
-            if self.year is None:
-                self.year = year
-            if self.week is None:
-                self.week = week
+        if self.date is None:
+            if self.week is None or self.year is None:
+                now = datetime.date.today()
+                year, week, _ = now.isocalendar()
+                if self.year is None:
+                    self.year = year
+                if self.week is None:
+                    self.week = week
+            self.date = self.monday_str()
 
 
     def previous_week(self):
@@ -65,16 +70,83 @@ class Arguments:
 
 # OPEN ####################################################################
 
-def openagenda(args):
+def open_agenda(args):
     sp.run(["open", "-a", "agenda"])
     # try:
     #     resp = xcall.xcall('agenda', '')
     # except xcall.XCallbackError as err:
     #     logger.error(err)
 
+
 def print_currentweek(args):
     weekstr, mondaystr = args.monday_str()
     print(f"{weekstr}  --  Monday={mondaystr}")
+
+
+def note_check_args(args, create=False):
+    if args.title is None:
+        logger.error(f"A title is required to open a note")
+        sys.exit(1)
+    if create:
+        if args.project is None:
+            logger.error(f"A project is required to create a note")
+            sys.exit(1)
+
+
+def note_open(args):
+    note_check_args(args)
+    parameters = {
+        'title': args.title,
+    }
+    if args.project is not None:
+        parameters['project-title'] = args.project
+    try:
+        resp = xcall.xcall('agenda', 'open-note', parameters)
+    except xcall.XCallbackError as err:
+        logger.debug(err)
+        note_create(args)
+        return
+    logger.debug(resp)
+
+
+def note_create(args):
+    note_check_args(args, create=True)
+    parameters = {
+        'title': args.title,
+        'on-the-agenda': 'false'
+    }
+    if args.date is not None:
+        parameters['date'] = args.date
+    if args.project is not None:
+        parameters['project-title'] = args.project
+    if args.message is not None and args.message != "":
+        parameters["text"] = f"{args.message}\n"
+    try:
+        resp = xcall.xcall('agenda', 'create-note', parameters)
+    except xcall.XCallbackError as err:
+        logger.error(err)
+        return
+    logger.debug(resp)
+
+
+def note_append(args):
+    note_check_args(args)
+    parameters = {
+        'title': args.title,
+    }
+    if args.project is not None:
+        parameters['project-title'] = args.project
+    if args.message is not None and args.message != "":
+        parameters["text"] = f"{args.message}\n"
+    else:
+        return
+    try:
+        resp = xcall.xcall('agenda', 'append-to-note', parameters)
+    except xcall.XCallbackError as err:
+        logger.error(err)
+        note_create(args)
+        return
+    logger.debug(resp)
 
 
 # TO DO ###################################################################
@@ -283,7 +355,8 @@ def run_launchbar(argv, action="todo"):
 # CLI ########################################################################
 
 commands = {
-    "open": openagenda,
+    "note": note_open,
+    "open": open_agenda,
     "toread": weeklytoread,
     "toreadcreate": weeklytoread_create,
     "toreadappend": weeklytoread_append,
@@ -305,7 +378,10 @@ def main(argv=None):
     # parser.add_argument('--type', '-t', choices=['toread', 'todo'], default='toread')
     parser.add_argument('--week', '-w', type=int, help='Week')
     parser.add_argument('--year', '-y', type=int, help='Year')
-    parser.add_argument('--message', '-m', help='Message')
+    parser.add_argument('--message', '-m', help='Message to add to note/todo/toread')
+    parser.add_argument('--title', '-t', help='Note title')
+    parser.add_argument('--project', '-p', help='Project title')
+    parser.add_argument('--date', '-d', help='Note date, expected format is "YYYY-mm-dd"')
     parser.add_argument('--list', '-l', action='store_true', help='List possible commands')
     parser.add_argument('cmd', nargs='*', help='List of commands: '+", ".join(commands.keys()))
     args = parser.parse_args(argv)
@@ -328,7 +404,9 @@ def main(argv=None):
         cmd = ['open']
     else:
         cmd = args.cmd
-    args = Arguments(message=args.message, week=args.week, year=args.year)
+    args = Arguments(title=args.title, message=args.message,
+                     project=args.project, date=args.date,
+                     week=args.week, year=args.year)
 
     for key, fn in commands.items():
         if key in cmd:
