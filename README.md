@@ -39,6 +39,13 @@ wm_agenda.run_launchbar_todo(sys.argv, action="todo")
 There is a `Share with Agenda.js` script to use with `Scriptable`.
 
 
+## Installation
+
+### Python
+
+- Install the [python-xcall](https://github.com/robwalton/python-xcall) package
+
+
 ## Contact
 
 Wannes Meert  

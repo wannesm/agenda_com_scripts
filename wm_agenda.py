@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 """
-wm_agenda.py
+Utility to create and open todo and toread notes in Agenda.com.
 
-Copyright (c) 2019 Wannes Meert. All rights reserved.
+Copyright (c) 2019-2020 Wannes Meert. All rights reserved.
 """
 
 import sys
@@ -40,7 +40,7 @@ class Arguments:
                     self.year = year
                 if self.week is None:
                     self.week = week
-            self.date = self.monday_str()
+            _weekstr, self.date, _sundaystr = self.date_str()
 
 
     def previous_week(self):
@@ -58,13 +58,15 @@ class Arguments:
         return weekstr
 
 
-    def monday_str(self):
+    def date_str(self):
         weekstr = self.week_str()
         # monday = datetime.datetime.strptime(weekstr + '-1', "%YW%W-%w")
         week2str = f"{self.year}W{self.week-1}"
         monday = datetime.datetime.strptime(week2str + '-1', "%YW%W-%w")
         mondaystr = monday.strftime("%Y-%m-%d")
-        return weekstr, mondaystr
+        sunday = monday + datetime.timedelta(days=6)
+        sundaystr = sunday.strftime("%Y-%m-%d")
+        return weekstr, mondaystr, sundaystr
 
 
 
@@ -79,8 +81,8 @@ def open_agenda(args):
 
 
 def print_currentweek(args):
-    weekstr, mondaystr = args.monday_str()
-    print(f"{weekstr}  --  Monday={mondaystr}")
+    weekstr, mondaystr, sundaystr = args.date_str()
+    print(f"{weekstr}  --  Monday={mondaystr}, Sunday={sundaystr}")
 
 
 def note_check_args(args, create=False):
@@ -179,14 +181,15 @@ def weeklytodo(args):
 
 def weeklytodo_create(args):
     logger.debug("Call weeklytoreadcreate")
-    weekstr, mondaystr = args.monday_str()
+    weekstr, mondaystr, sundaystr = args.date_str()
     parameters = {
         'title': "Todo " + weekstr,
         'project-title': 'Todo',
-        'date': mondaystr,
+        'start-date': mondaystr,
+        'end-date': sundaystr,
         'on-the-agenda': 'false'
     }
-    text = "#todo\n\n# This week\n- [ ] ...\n\n\n# Later\n\n\n# Done\n\n\n# To Handle\n"
+    text = "#todo\n\n# Today\n- [ ] ...\n\n# This week\n- [ ] ...\n\n\n# Later\n\n\n# Done\n\n\n# To Handle\n"
     if args.message is not None and args.message != "":
         text += f"- [ ] {args.message}\n"
     parameters["text"] = text
@@ -203,7 +206,7 @@ def weeklytodo_create(args):
 
 def weeklytodo_append(args):
     logger.debug("Call weeklytodoappend")
-    weekstr, mondaystr = args.monday_str()
+    weekstr, mondaystr, sundaystr = args.date_str()
     parameters = {
         'title': "Todo " + weekstr,
         'project-title': 'Todo'
@@ -261,7 +264,7 @@ def weeklytoread(args):
 
 def weeklytoread_create(args):
     logger.debug("Call weeklytoreadcreate")
-    weekstr, mondaystr = args.monday_str()
+    weekstr, mondaystr, _sundaystr = args.date_str()
     parameters = {
         'title': "To Read " + weekstr,
         'project-title': 'To Read',
@@ -283,7 +286,7 @@ def weeklytoread_create(args):
 
 def weeklytoread_append(args):
     logger.debug("Call weeklytoreadappend")
-    weekstr, mondaystr = args.monday_str()
+    weekstr, mondaystr, _sundaystr = args.date_str()
     parameters = {
         'title': "To Read " + weekstr,
         'project-title': 'To Read'
@@ -369,15 +372,13 @@ commands = {
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Agenda scripts')
+    parser = argparse.ArgumentParser(description='Agenda command line')
     parser.add_argument('--verbose', '-v', action='count', default=0, help='Verbose output')
     parser.add_argument('--quiet', '-q', action='count', default=0, help='Quiet output')
-    # parser.add_argument('--flag', '-f', action='store_true', help='Flag help')
-    # parser.add_argument('--output', '-o', required=True, help='Output file')
     # parser.add_argument('--version', action='version', version='%(prog)s 1.0')
     # parser.add_argument('--type', '-t', choices=['toread', 'todo'], default='toread')
-    parser.add_argument('--week', '-w', type=int, help='Week')
-    parser.add_argument('--year', '-y', type=int, help='Year')
+    parser.add_argument('--week', '-w', type=int, help='Set week manually')
+    parser.add_argument('--year', '-y', type=int, help='Set year manually')
     parser.add_argument('--message', '-m', help='Message to add to note/todo/toread')
     parser.add_argument('--title', '-t', help='Note title')
     parser.add_argument('--project', '-p', help='Project title')
@@ -398,9 +399,6 @@ def main(argv=None):
         return
 
     if args.cmd is None or len(args.cmd) == 0:
-        # if args.message is not None and args.message != "":
-        #     cmd = ['weeklytoreadappend']
-        # else:
         cmd = ['open']
     else:
         cmd = args.cmd
