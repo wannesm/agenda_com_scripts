@@ -6,7 +6,7 @@ Helper scripts for the [Agenda](https://www.agenda.com) app.
 
 ### Command line
 
-Requires the `python-xcall` Python package and the `xcall-app`.
+Requires the [python-xcall](https://github.com/robwalton/python-xcall) Python package.
 
 Usage:
 
