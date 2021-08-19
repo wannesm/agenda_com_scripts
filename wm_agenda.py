@@ -30,6 +30,7 @@ class Arguments:
     date: str = None
     week: int = None
     year: int = None
+    dryrun: bool = False
 
     def __post_init__(self):
         if self.date is None:
@@ -62,11 +63,19 @@ class Arguments:
         weekstr = self.week_str()
         # monday = datetime.datetime.strptime(weekstr + '-1', "%YW%W-%w")
         week2str = f"{self.year}W{self.week-1}"
-        monday = datetime.datetime.strptime(week2str + '-1', "%YW%W-%w")
+        monday = datetime.datetime.strptime(weekstr + '-1', "%YW%W-%w")
         mondaystr = monday.strftime("%Y-%m-%d")
         sunday = monday + datetime.timedelta(days=6)
         sundaystr = sunday.strftime("%Y-%m-%d")
         return weekstr, mondaystr, sundaystr
+
+
+def run_xcall(scheme, action, action_parameters, arguments=None):
+    if arguments and arguments.dryrun:
+        params = ', '.join(f'{k}={v}' for k,v in action_parameters.items())
+        print(f'run_xcall({scheme}, {action}, {params})')
+        return
+    xcall.xcall(scheme, action, action_parameters)
 
 
 
@@ -75,7 +84,7 @@ class Arguments:
 def open_agenda(args):
     sp.run(["open", "-a", "agenda"])
     # try:
-    #     resp = xcall.xcall('agenda', '')
+    #     resp = run_xcall('agenda', '')
     # except xcall.XCallbackError as err:
     #     logger.error(err)
 
@@ -103,7 +112,7 @@ def note_open(args):
     if args.project is not None:
         parameters['project-title'] = args.project
     try:
-        resp = xcall.xcall('agenda', 'open-note', parameters)
+        resp = run_xcall('agenda', 'open-note', parameters, args)
     except xcall.XCallbackError as err:
         logger.debug(err)
         note_create(args)
@@ -124,7 +133,7 @@ def note_create(args):
     if args.message is not None and args.message != "":
         parameters["text"] = f"{args.message}\n"
     try:
-        resp = xcall.xcall('agenda', 'create-note', parameters)
+        resp = run_xcall('agenda', 'create-note', parameters)
     except xcall.XCallbackError as err:
         logger.error(err)
         return
@@ -143,12 +152,12 @@ def note_append(args):
     else:
         return
     try:
-        resp = xcall.xcall('agenda', 'append-to-note', parameters)
+        resp = run_xcall('agenda', 'append-to-note', parameters, args)
     except xcall.XCallbackError as err:
         logger.error(err)
         note_create(args)
         return
-    logger.debug(resp)
+    lrogger.debug(resp)
 
 
 # TO DO ###################################################################
@@ -165,13 +174,13 @@ def weeklytodo(args):
     logger.debug("Call weeklytodo")
     weekstr = args.week_str()
     try:
-        resp = xcall.xcall(
+        resp = run_xcall(
             'agenda',
             'open-note',
             {
                 'title': "Todo " + weekstr,
                 'project-title': 'Todo'
-            })
+            }, args)
     except xcall.XCallbackError as err:
         logger.debug(err)
         weeklytodo_create(args)
@@ -194,10 +203,10 @@ def weeklytodo_create(args):
         text += f"- [ ] {args.message}\n"
     parameters["text"] = text
     try:
-        resp = xcall.xcall(
+        resp = run_xcall(
             'agenda',
             'create-note',
-            parameters)
+            parameters, args)
     except xcall.XCallbackError as err:
         logger.error(err)
         return
@@ -216,10 +225,10 @@ def weeklytodo_append(args):
     else:
         return
     try:
-        resp = xcall.xcall(
+        resp = run_xcall(
             'agenda',
             'append-to-note',
-            parameters)
+            parameters, args)
     except xcall.XCallbackError as err:
         logger.error(err)
         weeklytodo_create(args)
@@ -248,13 +257,13 @@ def weeklytoread(args):
     logger.debug("Call weeklytoread")
     weekstr = args.week_str()
     try:
-        resp = xcall.xcall(
+        resp = run_xcall(
             'agenda',
             'open-note',
             {
                 'title': "To Read " + weekstr,
                 'project-title': 'To Read'
-            })
+            }, args)
     except xcall.XCallbackError as err:
         logger.debug(err)
         weeklytoread_create(args)
@@ -274,10 +283,10 @@ def weeklytoread_create(args):
     if args.message is not None and args.message != "":
         parameters["text"] = f"- [ ] {args.message}\n"
     try:
-        resp = xcall.xcall(
+        resp = run_xcall(
             'agenda',
             'create-note',
-            parameters)
+            parameters, args)
     except xcall.XCallbackError as err:
         logger.error(err)
         return
@@ -296,10 +305,10 @@ def weeklytoread_append(args):
     else:
         return
     try:
-        resp = xcall.xcall(
+        resp = run_xcall(
             'agenda',
             'append-to-note',
-            parameters)
+            parameters, args)
     except xcall.XCallbackError as err:
         logger.error(err)
         weeklytoread_create(args)
@@ -384,6 +393,7 @@ def main(argv=None):
     parser.add_argument('--project', '-p', help='Project title')
     parser.add_argument('--date', '-d', help='Note date, expected format is "YYYY-mm-dd"')
     parser.add_argument('--list', '-l', action='store_true', help='List possible commands')
+    parser.add_argument('--dry-run', dest='dryrun', action='store_true', help='Do not perform the actual call')
     parser.add_argument('cmd', nargs='*', help='List of commands: '+", ".join(commands.keys()))
     args = parser.parse_args(argv)
 
@@ -404,7 +414,7 @@ def main(argv=None):
         cmd = args.cmd
     args = Arguments(title=args.title, message=args.message,
                      project=args.project, date=args.date,
-                     week=args.week, year=args.year)
+                     week=args.week, year=args.year, dryrun=args.dryrun)
 
     for key, fn in commands.items():
         if key in cmd:
